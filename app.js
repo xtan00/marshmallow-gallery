@@ -4,8 +4,7 @@
   if (!PHOTOS || PHOTOS.length === 0) return;
 
   const CONFIG = {
-    batchMin: 3,
-    batchMax: 4,
+    batchSize: 5,
     showDuration: 5500,
     enterDuration: 1400,
     exitDuration: 1200,
@@ -67,11 +66,17 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  function randomBatchSize(remaining) {
-    const max = Math.min(CONFIG.batchMax, remaining);
-    const min = Math.min(CONFIG.batchMin, max);
-    return min + Math.floor(Math.random() * (max - min + 1));
+  function batchSize(remaining) {
+    return Math.min(CONFIG.batchSize, remaining);
   }
+
+  const LAYOUT_SLOTS = [
+    { row: 0, col: 0, cols: 2 },
+    { row: 0, col: 1, cols: 2 },
+    { row: 1, col: 0, cols: 3 },
+    { row: 1, col: 1, cols: 3 },
+    { row: 1, col: 2, cols: 3 },
+  ];
 
   function getGallerySize() {
     const rect = gallery.getBoundingClientRect();
@@ -81,102 +86,56 @@
     };
   }
 
-  function getCardSize(count, width, height) {
+  function getCardSize(width, height) {
     const pad = 24;
-    const gap = 40;
-    const areaH = height * 0.62;
+    const gapH = 40;
+    const gapV = 36;
+    const areaH = height * 0.68;
 
-    if (count === 1) {
-      const w = Math.min(360, width - pad * 2);
-      const h = Math.min(420, areaH - pad * 2);
-      return { w, h };
-    }
+    const wFromBottom = Math.floor((width - pad * 2 - gapH * 2) / 3);
+    const wFromTop = Math.floor((width - pad * 2 - gapH) / 2);
+    const w = Math.min(wFromBottom, wFromTop, 300);
 
-    if (count === 2) {
-      const w = Math.floor((width - pad * 2 - gap) / 2);
-      const h = Math.min(Math.floor(areaH - pad * 2), 380);
-      return { w: Math.min(w, 340), h };
-    }
+    const h = Math.floor((areaH - pad * 2 - gapV) / 2);
+    return { w, h: Math.min(h, 340) };
+  }
 
-    if (count === 3) {
-      const w = Math.floor((width - pad * 2 - gap * 2) / 3);
-      const h = Math.min(Math.floor(areaH - pad * 2), 400);
-      return { w: Math.min(w, 320), h };
-    }
-
-    const w = Math.floor((width - pad * 2 - gap) / 2);
-    const h = Math.floor((areaH - pad * 2 - gap) / 2);
-    return { w: Math.min(w, 300), h: Math.min(h, 340) };
+  function rowStartX(cols, width, cardW, gapH) {
+    const totalW = cols * cardW + (cols - 1) * gapH;
+    return (width - totalW) / 2;
   }
 
   function pickLayout(count) {
     const { width, height } = getGallerySize();
     const pad = 24;
-    const gap = 44;
-    const areaH = height * 0.62;
-    const size = getCardSize(count, width, height);
+    const gapH = 40;
+    const gapV = 36;
+    const areaH = height * 0.68;
+    const size = getCardSize(width, height);
+    const blockH = size.h * 2 + gapV;
+    const startY = pad + (areaH - blockH) / 2;
+    const rowTops = [startY, startY + size.h + gapV];
     const layouts = [];
 
-    if (count === 1) {
-      layouts.push({
-        leftPx: (width - size.w) / 2,
-        topPx: pad + (areaH - size.h) / 2,
-        size,
-      });
-      return layouts;
-    }
-
-    if (count === 2) {
-      const totalW = size.w * 2 + gap;
-      const startX = (width - totalW) / 2;
-      const startY = pad + (areaH - size.h) / 2;
-      for (let i = 0; i < 2; i++) {
-        layouts.push({
-          leftPx: startX + i * (size.w + gap),
-          topPx: startY,
-          size,
-        });
-      }
-      return layouts;
-    }
-
-    if (count === 3) {
-      const totalW = size.w * 3 + gap * 2;
-      const startX = (width - totalW) / 2;
-      const startY = pad + (areaH - size.h) / 2;
-      const yOffsets = [0, 18, 8];
-      for (let i = 0; i < 3; i++) {
-        layouts.push({
-          leftPx: startX + i * (size.w + gap),
-          topPx: startY + yOffsets[i],
-          size,
-        });
-      }
-      return layouts;
-    }
-
-    const totalW = size.w * 2 + gap;
-    const totalH = size.h * 2 + gap;
-    const startX = (width - totalW) / 2;
-    const startY = pad + (areaH - totalH) / 2;
     for (let i = 0; i < count; i++) {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
+      const slot = LAYOUT_SLOTS[i];
+      const leftPx = rowStartX(slot.cols, width, size.w, gapH) + slot.col * (size.w + gapH);
       layouts.push({
-        leftPx: startX + col * (size.w + gap),
-        topPx: startY + row * (size.h + gap),
+        leftPx,
+        topPx: rowTops[slot.row],
         size,
       });
     }
+
     return layouts;
   }
 
   function createCard(photo, layout, index) {
     const size = layout.size;
     const dir = entryDirs[Math.floor(Math.random() * entryDirs.length)];
-    const rotate = -5 + Math.random() * 10;
-    const floatX = 5 + Math.random() * 8;
-    const floatY = 4 + Math.random() * 8;
+    const rotate = -3 + Math.random() * 6;
+    const floatX = 3 + Math.random() * 5;
+    const floatY = 2 + Math.random() * 5;
 
     const card = document.createElement("div");
     card.className = "photo-card";
@@ -269,7 +228,7 @@
     const queue = shuffle(PHOTOS);
 
     while (queue.length > 0 && running) {
-      const size = randomBatchSize(queue.length);
+      const size = batchSize(queue.length);
       const batch = queue.splice(0, size);
       await showBatch(batch);
       if (queue.length > 0) await wait(CONFIG.batchGap);
