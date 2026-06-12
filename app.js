@@ -13,15 +13,6 @@
     stagger: 180,
   };
 
-  const sizes = [
-    { w: 150, h: 190 },
-    { w: 180, h: 150 },
-    { w: 165, h: 165 },
-    { w: 140, h: 180 },
-    { w: 200, h: 155 },
-    { w: 145, h: 145 },
-  ];
-
   const entryDirs = [
     { x: "-120%", y: "0", ex: "120%", ey: "0" },
     { x: "120%", y: "0", ex: "-120%", ey: "0" },
@@ -90,83 +81,102 @@
     };
   }
 
-  function rectsOverlap(a, b, gap) {
-    return !(
-      a.left + a.w + gap <= b.left ||
-      b.left + b.w + gap <= a.left ||
-      a.top + a.h + gap <= b.top ||
-      b.top + b.h + gap <= a.top
-    );
+  function getCardSize(count, width, height) {
+    const pad = 24;
+    const gap = 40;
+    const areaH = height * 0.62;
+
+    if (count === 1) {
+      const w = Math.min(360, width - pad * 2);
+      const h = Math.min(420, areaH - pad * 2);
+      return { w, h };
+    }
+
+    if (count === 2) {
+      const w = Math.floor((width - pad * 2 - gap) / 2);
+      const h = Math.min(Math.floor(areaH - pad * 2), 380);
+      return { w: Math.min(w, 340), h };
+    }
+
+    if (count === 3) {
+      const w = Math.floor((width - pad * 2 - gap * 2) / 3);
+      const h = Math.min(Math.floor(areaH - pad * 2), 400);
+      return { w: Math.min(w, 320), h };
+    }
+
+    const w = Math.floor((width - pad * 2 - gap) / 2);
+    const h = Math.floor((areaH - pad * 2 - gap) / 2);
+    return { w: Math.min(w, 300), h: Math.min(h, 340) };
   }
 
-  function pickGridLayout(count, width, height, startIndex) {
+  function pickLayout(count) {
+    const { width, height } = getGallerySize();
+    const pad = 24;
+    const gap = 44;
+    const areaH = height * 0.62;
+    const size = getCardSize(count, width, height);
     const layouts = [];
-    const cols = Math.min(count, 2);
-    const rows = Math.ceil(count / cols);
-    const areaHeight = height * 0.48;
-    const padding = 20;
-    const cellW = (width - padding * 2) / cols;
-    const cellH = (areaHeight - padding * 2) / rows;
 
-    for (let i = 0; i < count; i++) {
-      const size = sizes[(startIndex + i) % sizes.length];
-      const col = i % cols;
-      const row = Math.floor(i / cols);
+    if (count === 1) {
       layouts.push({
-        leftPx: padding + col * cellW + Math.max((cellW - size.w) / 2, 0),
-        topPx: padding + row * cellH + Math.max((cellH - size.h) / 2, 0),
+        leftPx: (width - size.w) / 2,
+        topPx: pad + (areaH - size.h) / 2,
+        size,
+      });
+      return layouts;
+    }
+
+    if (count === 2) {
+      const totalW = size.w * 2 + gap;
+      const startX = (width - totalW) / 2;
+      const startY = pad + (areaH - size.h) / 2;
+      for (let i = 0; i < 2; i++) {
+        layouts.push({
+          leftPx: startX + i * (size.w + gap),
+          topPx: startY,
+          size,
+        });
+      }
+      return layouts;
+    }
+
+    if (count === 3) {
+      const totalW = size.w * 3 + gap * 2;
+      const startX = (width - totalW) / 2;
+      const startY = pad + (areaH - size.h) / 2;
+      const yOffsets = [0, 18, 8];
+      for (let i = 0; i < 3; i++) {
+        layouts.push({
+          leftPx: startX + i * (size.w + gap),
+          topPx: startY + yOffsets[i],
+          size,
+        });
+      }
+      return layouts;
+    }
+
+    const totalW = size.w * 2 + gap;
+    const totalH = size.h * 2 + gap;
+    const startX = (width - totalW) / 2;
+    const startY = pad + (areaH - totalH) / 2;
+    for (let i = 0; i < count; i++) {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      layouts.push({
+        leftPx: startX + col * (size.w + gap),
+        topPx: startY + row * (size.h + gap),
         size,
       });
     }
     return layouts;
   }
 
-  function pickLayout(count) {
-    const { width, height } = getGallerySize();
-    const padding = 20;
-    const gap = 48;
-    const areaHeight = height * 0.48;
-    const placed = [];
-    const layouts = [];
-
-    for (let i = 0; i < count; i++) {
-      const size = sizes[Math.floor(Math.random() * sizes.length)];
-      let found = false;
-
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const maxLeft = width - size.w - padding;
-        const maxTop = areaHeight - size.h - padding;
-        if (maxLeft < padding || maxTop < padding) break;
-
-        const candidate = {
-          left: padding + Math.random() * (maxLeft - padding),
-          top: padding + Math.random() * (maxTop - padding),
-          w: size.w,
-          h: size.h,
-        };
-
-        if (!placed.some((rect) => rectsOverlap(candidate, rect, gap))) {
-          placed.push(candidate);
-          layouts.push({ leftPx: candidate.left, topPx: candidate.top, size });
-          found = true;
-          break;
-        }
-      }
-
-      if (!found) {
-        return pickGridLayout(count, width, height, layouts.length);
-      }
-    }
-
-    return layouts;
-  }
-
   function createCard(photo, layout, index) {
     const size = layout.size;
     const dir = entryDirs[Math.floor(Math.random() * entryDirs.length)];
-    const rotate = -10 + Math.random() * 20;
-    const floatX = 12 + Math.random() * 20;
-    const floatY = 8 + Math.random() * 16;
+    const rotate = -5 + Math.random() * 10;
+    const floatX = 5 + Math.random() * 8;
+    const floatY = 4 + Math.random() * 8;
 
     const card = document.createElement("div");
     card.className = "photo-card";
